@@ -9,9 +9,14 @@ function sanitizeBranchName(name: string) {
 export function getBranchNameFromPatternWithId(pattern: string, id: number, name: string): string {
 
     const sanitizedName = sanitizeBranchName(name);
-    const patternWIthId = pattern
-        .replace(/\\s\*?/g, "") // replaces the \s or \s* structures from the pattern
-        .replace(/\(\\d\+\)/, id.toString());// replaces the "(\d+)" group
+    let patternWIthId: string;
+    if (!!pattern) {
+        patternWIthId = pattern
+            .replace(/\\s\*?/g, "") // replaces the \s or \s* structures from the pattern
+            .replace(/\(\\d\+\)/, id.toString());// replaces the "(\d+)" group
 
+    } else {
+        patternWIthId = "entity_id_" + id.toString();
+    }
     return patternWIthId + "-" + sanitizedName;
 }
