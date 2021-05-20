@@ -16,7 +16,7 @@
 
 import {CookieJar} from 'tough-cookie';
 import {OctaneSharedSpace} from './octane-shared-space';
-import got, {Got} from 'got';
+import got, {Got, Headers} from 'got';
 
 const cache = new Map();
 
@@ -41,20 +41,17 @@ export class OctaneClient {
 	private readonly client: Got;
 	private readonly baseUrl: string;
 
-	constructor(fullUrl: string, clientType?: string) {
+	constructor(fullUrl: string, headers?: Headers) {
 		const octaneFullUrl = new URL(fullUrl);
 
 		this.baseUrl = `${octaneFullUrl.protocol || 'http:'}//${octaneFullUrl.host}`;
 
-		const headers = {
-			...(clientType && {HPECLIENTTYPE: clientType}),
-		};
 
 		this.client = got.extend({
 			prefixUrl: this.baseUrl,
 			headers,
 			cookieJar: new CookieJar(),
-			responseType:"json",
+			responseType: "json",
 			cache,
 		});
 	}

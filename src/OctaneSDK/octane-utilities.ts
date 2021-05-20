@@ -1,6 +1,7 @@
-import {pick,isEmpty} from 'lodash'
+import {isEmpty, pick} from 'lodash'
 import {OctaneClient} from "./octane-client";
 import {OctaneSharedSpace} from "./octane-shared-space";
+import {Headers} from "got";
 
 interface BasicConfiguration {
     OCTANE_URL: string;
@@ -9,7 +10,7 @@ interface BasicConfiguration {
     OCTANE_PASSWORDS: string;
 }
 
-export async function getOctaneFromEnv(sharedSpaceId:number):Promise<OctaneSharedSpace>{
+export async function getOctaneFromEnv(sharedSpaceId: number, headers?: Headers): Promise<OctaneSharedSpace> {
     const envConfiguration = getConfigurationFromEnv()
     const splitAndTrim = (longString: string) => longString.split(',').map((value) => value.trim());
     const sharedSpaceIds = splitAndTrim(envConfiguration.OCTANE_SHARED_SPACES);
@@ -17,10 +18,10 @@ export async function getOctaneFromEnv(sharedSpaceId:number):Promise<OctaneShare
     const sharedPasswords = splitAndTrim(envConfiguration.OCTANE_PASSWORDS);
 
     const sharedSpaceCredentials = sharedSpaceIds.map((element, index) => {
-        return {id: parseInt(element,10), user: sharedUsers[index], password: sharedPasswords[index]};
+        return {id: parseInt(element, 10), user: sharedUsers[index], password: sharedPasswords[index]};
     });
 
-    const octaneClient = new OctaneClient(envConfiguration.OCTANE_URL);
+    const octaneClient = new OctaneClient(envConfiguration.OCTANE_URL, headers);
 
     const indexOfSharedSpace: number = sharedSpaceIds.indexOf(sharedSpaceId.toString());
     await octaneClient.signIn(

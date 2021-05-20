@@ -9,6 +9,7 @@ import {convertBitbucketCloudRepoUrlToApiUrl} from "./Services/bitbucket-cloud-s
 import {OctaneWorkspace} from "./OctaneSDK/octane-workspace";
 import {convertGithubCloudRepoUrlToApiUrl} from "./Services/github-cloud";
 import {convertBitbucketServerRepoUrlToApiUrl} from "./Services/bitbucket-server-services";
+import {Headers} from "got";
 
 const urlencodedParser = bodyParser.urlencoded({extended: false});
 
@@ -388,7 +389,7 @@ app.get("/repo_select", async (req, res) => {
         getStyle() +
         `<div class="banner">Create Branch</div><div class="content">` +
         "<form action=\"/repo_selected\" method=\"post\">\n" +
-        "<section><h2>Select the repo in which you want to create the branch</h2>" +
+        "<section><h2>Select the repository in which you want to create the branch</h2>" +
         repoRadios +
         "</section>" +
         "<section><h2>Select the pattern to use</h2>" +
@@ -553,7 +554,8 @@ async function getOctaneRootRepository(octaneWorkspace: OctaneWorkspace, repoUrl
 }
 
 async function getOctaneScmPatternsForBranches(sharedSpaceId: number, workspaceId: number, entityType: string) {
-    const octaneSharedSpace = await getOctaneFromEnv(sharedSpaceId);
+    const apiHeader: Headers = {'ALM-OCTANE-PRIVATE': "true"}
+    const octaneSharedSpace = await getOctaneFromEnv(sharedSpaceId, apiHeader);
     const octaneWorkspace = octaneSharedSpace.workspace(workspaceId);
 
     const queryParameters: FetchParameters = {
