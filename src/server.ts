@@ -151,15 +151,33 @@ async function createBitbucketServerBranch(accessToken: string, repoUrl: string,
     return await request.json();
 }
 
-async function getAllGithubBranches(accessToken: string, repoUrl: string): Promise<GithubBranches[]> {
-    console.log("Getting git branches");
-    const branchesUrl = `${repoUrl}/branches`;
+async function getGithubCloudBranchPage(apiUrl: string, accessToken: string, page: number) {
+    console.log("Getting Github Cloud branch page " + page);
+    const branchesUrl = `${apiUrl}/branches?page=${page}`;
     const request = await fetch(branchesUrl, {
         headers: {
             Authorization: "token " + accessToken
         }
-    });// todo get all branches ?
-    return await request.json()
+    });
+    const response = await request.json()
+    if (!request.ok) {
+        throw new Error("Request to Github Cloud failed:" + JSON.stringify(response));
+    }
+    return response
+
+}
+
+async function getAllGithubBranches(accessToken: string, apiUrl: string): Promise<GithubBranches[]> {
+    console.log("Getting git branches");
+    let allBranches: GithubBranches[] = [];
+    let page = 0;
+    let githubCloudResponse
+    do {
+        githubCloudResponse = await getGithubCloudBranchPage(apiUrl, accessToken, page++);
+        allBranches = allBranches.concat(githubCloudResponse);
+    } while (githubCloudResponse.length > 0)
+
+    return allBranches;
 }
 
 interface GithubCommit {
@@ -176,7 +194,7 @@ interface BitbucketCloudCommit {
     hash: string
 }
 
-interface BitBucketCloudBranch {
+interface BitbucketCloudBranch {
     name: string,
     target: BitbucketCloudCommit
 }
@@ -186,45 +204,94 @@ interface BitbucketServerBranch {
     id: string
 }
 
-async function getAllBitbucketCloudBranches(accessToken: string, apiUrl: string): Promise<BitBucketCloudBranch[]> {
-    console.log("Getting git branches");
-    const branchesUrl = `${apiUrl}/refs/branches`;
+async function getBitbucketCloudBranchPage(branchesUrl: string, accessToken: string): Promise<BitbucketCloudPagedResponse> {
+    console.log("Getting bitbucket cloud branch page from:" + branchesUrl);
     const request = await fetch(branchesUrl, {
         headers: {
             Authorization: "Bearer " + accessToken
         }
-    });// todo get all branches ?
+    });
     const response = await request.json();
 
     if (!request.ok) {
         throw new Error("Request to Bitbucket Cloud failed:" + JSON.stringify(response));
     }
     if (response.hasOwnProperty("values")) {
-        return response.values
+        return response
     } else {
         throw new Error("No branches returned");
     }
 }
 
+interface BitbucketCloudPagedResponse {
+    next?: string,
+    values: []
+}
 
-async function getAllBitbucketServerBranches(accessToken: any, apiUrl: any): Promise<BitbucketServerBranch[]> {
+async function getAllBitbucketCloudBranches(accessToken: string, apiUrl: string): Promise<BitbucketCloudBranch[]> {
     console.log("Getting git branches");
-    const branchesUrl = `${apiUrl}/branches`;
+    let allBranches: BitbucketCloudBranch[] = [];
+    const bitbucketServerGetLimit = Number(process.env.BITBUCKET_CLOUD_GET_LIMIT);
+    const maxItemsInPage = Number.isNaN(bitbucketServerGetLimit) ? 100 : bitbucketServerGetLimit;
+    const branchesUrl = `${apiUrl}/refs/branches?pagelen=${maxItemsInPage}`;
+    let bitbucketCloudResponsePage: BitbucketCloudPagedResponse = {values: [], next: branchesUrl};
+    do {
+        bitbucketCloudResponsePage = await getBitbucketCloudBranchPage(bitbucketCloudResponsePage.next, accessToken);
+        allBranches = allBranches.concat(bitbucketCloudResponsePage.values);
+    } while (!!bitbucketCloudResponsePage.next)// while there is a next page
+
+    return allBranches
+}
+
+
+interface BitbucketServerPagedResponse {
+    isLastPage: boolean,
+    values: [],
+    nextPageStart?: number
+}
+
+async function getBitbucketServerBranchPage(apiUrl: any, accessToken: any, limit: number, start: number): Promise<BitbucketServerPagedResponse> {
+    console.log("Getting bitbucket server branch page from start:" + start);
+    const branchesUrl = new URL(`${apiUrl}/branches`);
+    const params = {limit: limit.toString(), start: start.toString()};
+    branchesUrl.search = new URLSearchParams(params).toString()
+
     const request = await fetch(branchesUrl, {
         headers: {
             Authorization: "Bearer " + accessToken
         }
-    });// todo get all branches ?
+    });
     const response = await request.json();
 
     if (!request.ok) {
         throw new Error("Request to Bitbucket Server failed:" + JSON.stringify(response));
     }
-    if (response.hasOwnProperty("values")) {
-        return response.values
-    } else {
-        throw new Error("No branches returned");
+    if (!response.hasOwnProperty("values")) {
+        throw new Error("There was an error while getting the Bitbucket Server branches. No values returned:" + JSON.stringify(response))
     }
+    if (!response.hasOwnProperty("isLastPage")) {
+        throw new Error("There was an error while getting the Bitbucket Server branches. No 'isLastPage' value returned:" + JSON.stringify(response))
+    } else {
+        if (!response.isLastPage && !response.hasOwnProperty("nextPageStart")) {
+            throw new Error("There was an error while getting the Bitbucket Server branches. No 'nextPage' value returned:" + JSON.stringify(response))
+        }
+    }
+
+    return response
+}
+
+async function getAllBitbucketServerBranches(accessToken: any, apiUrl: any): Promise<BitbucketServerBranch[]> {
+    console.log("Getting git branches");
+    let allBranches: BitbucketServerBranch[] = [];
+    const bitbucketServerGetLimit = Number(process.env.BITBUCKET_SERVER_GET_LIMIT);
+    const maxItemsInPage = Number.isNaN(bitbucketServerGetLimit) ? 1000 : bitbucketServerGetLimit;
+    let bitbucketServerResponsePage: BitbucketServerPagedResponse = {values: [], isLastPage: false, nextPageStart: 0};
+    do {
+        bitbucketServerResponsePage = await getBitbucketServerBranchPage(apiUrl, accessToken, maxItemsInPage, bitbucketServerResponsePage.nextPageStart);
+        allBranches = allBranches.concat(bitbucketServerResponsePage.values);
+    } while (!bitbucketServerResponsePage.isLastPage)
+
+    return allBranches
 }
 
 app.get("/login/bitbucket/server/callback", async (req, res) => {
@@ -239,8 +306,7 @@ app.get("/login/bitbucket/server/callback", async (req, res) => {
         sendErrorMessage(res, "Failed to get branches from Bitbucket Server", e)
     }
 
-});// todo handle no branch selected
-
+});
 
 app.get("/login/bitbucket/cloud/callback", async (req, res) => {
     try {
@@ -258,7 +324,8 @@ app.get("/login/bitbucket/cloud/callback", async (req, res) => {
     }
 });
 
-function respondWithBaseBranchForm<ResBody, Locals>(res: express.Response, selectBranchesList: { id: string; text: string }[], branchName: string, createBranchPath: string) {
+function respondWithBaseBranchForm<ResBody, Locals>(res: express.Response, selectBranchesList: { id: string; text: string; selected?: boolean }[], branchName: string, createBranchPath: string) {
+    selectBranchesList[0].selected = true;
     res.send(
         `<html lang="en">` +
         `<head>` +
@@ -268,7 +335,8 @@ function respondWithBaseBranchForm<ResBody, Locals>(res: express.Response, selec
         `<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>` +
         `<script>` +
         `$(document).ready(function(){` +
-        `$("#sha").select2({data:${JSON.stringify(selectBranchesList)}});` +
+        `$("#sha").select2({data:${JSON.stringify(selectBranchesList)},
+                            allowClear:false});` +
         `});` +
         `</script>` +
         `<title>Branch Creation</title></head>` +
@@ -348,8 +416,6 @@ function createReposSelectRadios() {
     return radios
 
 }
-
-// todo github branch exists error
 
 app.get("/repo_select", async (req, res) => {
     try {
@@ -499,7 +565,8 @@ app.post("/createBitbucketServerBranch", urlencodedParser, async (req, res) => {
 
 
 async function createOctaneBranch(sharedSpaceId: number, workspaceId: number, workItemId: string, branchName: string, repoUrl: string) {
-    const apiHeader: Headers = {'ALM_OCTANE_TECH_PREVIEW': "true"}
+    // Usually, this header should not be used.
+    const apiHeader: Headers = {'ALM-OCTANE-PRIVATE': "true"}
     const octaneSharedSpace = await getOctaneFromEnv(sharedSpaceId, apiHeader);
     const octaneWorkspace = octaneSharedSpace.workspace(workspaceId);
     const repository = await getOctaneRootRepository(octaneWorkspace, repoUrl);
@@ -529,7 +596,7 @@ async function createRootRepository(octaneWorkspace: OctaneWorkspace, repoUrl: s
         return response.data[0]
     }
 
-    throw new Error("Failed to create root repository");
+    throw new Error("Failed to create root repository:" + JSON.stringify(response));
 }
 
 async function getOctaneRootRepository(octaneWorkspace: OctaneWorkspace, repoUrl: string): Promise<ReferenceEntity> {
@@ -551,6 +618,7 @@ async function getOctaneRootRepository(octaneWorkspace: OctaneWorkspace, repoUrl
 }
 
 async function getOctaneScmPatternsForBranches(sharedSpaceId: number, workspaceId: number, entityType: string) {
+    // Usually, this header should not be used. In this case, there is currently no other way of getting the scm patterns
     const apiHeader: Headers = {'ALM-OCTANE-PRIVATE': "true"}
     const octaneSharedSpace = await getOctaneFromEnv(sharedSpaceId, apiHeader);
     const octaneWorkspace = octaneSharedSpace.workspace(workspaceId);
