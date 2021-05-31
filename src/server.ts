@@ -397,35 +397,39 @@ function convertWorkItemSubtypeToPatternEntityType(subtype: string) {
 
 
 function createReposSelectRadios() {
-    const splitAndTrim = (longString: string) => longString.split(',').map((value) => value.trim());
+    const splitAndTrim = (longString: string) => longString?.split(',').map((value) => value.trim());
     const bbCloudRepos = splitAndTrim(process.env.BITBUCKET_CLOUD_REPOSITORIES);
-    const bbServerUrls = splitAndTrim(process.env.BITBUCKET_SERVER_BASE_URLS);
+    const bbServerRepos = splitAndTrim(process.env.BITBUCKET_SERVER_REPOSITORIES);
     const ghCloudRepos = splitAndTrim(process.env.GITHUB_CLOUD_REPOSITORIES);
 
     let totalRepos = 0;
     let radios = '';
 
-    bbCloudRepos.forEach((url, index) => {
-        radios += `<label class="container"  for=\"radio_bitbucket_cloud_${index}\">${url}` +
-            `<input id=\"radio_bitbucket_cloud_${index}\" type=\"radio\" name=\"repo\" value="BITBUCKET_CLOUD_REPOSITORIES_${url}" ${totalRepos === 0 ? "checked=true" : ""} >` +
-            `<span class="checkmark"></span></label><br>`
-        totalRepos += 1
+    bbCloudRepos?.forEach((url, index) => {
+        if (url.length > 0) {
+            radios += `<label class="container"  for=\"radio_bitbucket_cloud_${index}\">${url}` +
+                `<input id=\"radio_bitbucket_cloud_${index}\" type=\"radio\" name=\"repo\" value="BITBUCKET_CLOUD_REPOSITORIES_${url}" ${totalRepos === 0 ? "checked=true" : ""} >` +
+                `<span class="checkmark"></span></label><br>`
+            totalRepos += 1
+        }
     })
 
-    bbServerUrls.forEach((url, index) => {
-        radios += `<label class="container"  for=\"radio_bitbucket_server_${index}\">${url} ` +
-            `<input id=\"radio_bitbucket_server_${index}\" type=\"radio\" name=\"repo\" value="BITBUCKET_SERVER_BASE_URLS_${url}" ${totalRepos === 0 ? "checked=true" : ""} >` +
-            `<span class="checkmark"></label><br>`
-        totalRepos += 1
+    bbServerRepos?.forEach((url, index) => {
+        if (url.length > 0) {
+            radios += `<label class="container"  for=\"radio_bitbucket_server_${index}\">${url} ` +
+                `<input id=\"radio_bitbucket_server_${index}\" type=\"radio\" name=\"repo\" value="BITBUCKET_SERVER_REPOSITORIES_${url}" ${totalRepos === 0 ? "checked=true" : ""} >` +
+                `<span class="checkmark"></label><br>`
+            totalRepos += 1
+        }
     })
-
-    ghCloudRepos.forEach((url, index) => {
-        radios += `<label class="container"  for=\"radio_github_cloud_${index}\">${url} ` +
-            `<input id=\"radio_github_cloud_${index}\" type=\"radio\" name=\"repo\" value="GITHUB_CLOUD_REPOSITORIES_${url}" ${totalRepos === 0 ? "checked=true" : ""} >` +
-            `<span class="checkmark"></label><br>`
-        totalRepos += 1
+    ghCloudRepos?.forEach((url, index) => {
+        if (url.length > 0) {
+            radios += `<label class="container"  for=\"radio_github_cloud_${index}\">${url} ` +
+                `<input id=\"radio_github_cloud_${index}\" type=\"radio\" name=\"repo\" value="GITHUB_CLOUD_REPOSITORIES_${url}" ${totalRepos === 0 ? "checked=true" : ""} >` +
+                `<span class="checkmark"></label><br>`
+            totalRepos += 1
+        }
     })
-
     return radios
 
 }
@@ -490,9 +494,9 @@ app.post("/repo_selected", urlencodedParser, async (req, res) => {
         req.session.apiUrl = convertGithubCloudRepoUrlToApiUrl(repoUrl)
         req.session.branchName = branchName;
         res.redirect("/login/github")
-    } else if (repo.startsWith("BITBUCKET_SERVER_BASE_URLS_")) {
+    } else if (repo.startsWith("BITBUCKET_SERVER_REPOSITORIES_")) {
         // creat bb server branch
-        const repoUrl = repo.replace("BITBUCKET_SERVER_BASE_URLS_", "")
+        const repoUrl = repo.replace("BITBUCKET_SERVER_REPOSITORIES_", "")
         req.session.repoUrl = repoUrl
         req.session.apiUrl = convertBitbucketServerRepoUrlToApiUrl(repoUrl)
         req.session.branchName = branchName;
