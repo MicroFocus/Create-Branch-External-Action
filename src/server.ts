@@ -170,14 +170,18 @@ async function getGithubCloudBranchPage(apiUrl: string, accessToken: string, pag
 async function getAllGithubBranches(accessToken: string, apiUrl: string): Promise<GithubBranches[]> {
     console.log("Getting git branches");
     let allBranches: GithubBranches[] = [];
-    let page = 0;
+    let page = 1;
     let githubCloudResponse
     do {
         githubCloudResponse = await getGithubCloudBranchPage(apiUrl, accessToken, page++);
         allBranches = allBranches.concat(githubCloudResponse);
     } while (githubCloudResponse.length > 0)
 
-    return allBranches;
+    if (allBranches.length > 0) {
+        return allBranches
+    } else {
+        throw new Error(`No branches returned by Github Cloud using the ${apiUrl} base api. Please check that the repository has at least one branch.`)
+    }
 }
 
 interface GithubCommit {
@@ -240,7 +244,11 @@ async function getAllBitbucketCloudBranches(accessToken: string, apiUrl: string)
         allBranches = allBranches.concat(bitbucketCloudResponsePage.values);
     } while (!!bitbucketCloudResponsePage.next)// while there is a next page
 
-    return allBranches
+    if (allBranches.length > 0) {
+        return allBranches
+    } else {
+        throw new Error(`No branches returned by Bitbucket Cloud using the ${apiUrl} base api. Please check that the repository has at least one branch.`)
+    }
 }
 
 
@@ -291,7 +299,12 @@ async function getAllBitbucketServerBranches(accessToken: any, apiUrl: any): Pro
         allBranches = allBranches.concat(bitbucketServerResponsePage.values);
     } while (!bitbucketServerResponsePage.isLastPage)
 
-    return allBranches
+
+    if (allBranches.length > 0) {
+        return allBranches
+    } else {
+        throw new Error(`No branches returned by Bitbucket Server using the ${apiUrl} base api. Please check that the repository has at least one branch.`)
+    }
 }
 
 app.get("/login/bitbucket/server/callback", async (req, res) => {
