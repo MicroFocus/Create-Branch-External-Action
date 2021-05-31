@@ -133,7 +133,12 @@ async function createBitbucketCloudBranch(accessToken: string, repoUrl: string, 
             target: {hash}
         })
     })
-    return await request.json();
+    const response = await request.json();
+    if (request.ok) {
+        return response;
+    } else {
+        throw new Error("Failed to create branch in Bitbucket Cloud: " + JSON.stringify(response));
+    }
 }
 
 async function createBitbucketServerBranch(accessToken: string, repoUrl: string, branchName: string, startPoint: string) {
@@ -148,7 +153,12 @@ async function createBitbucketServerBranch(accessToken: string, repoUrl: string,
             startPoint
         })
     })
-    return await request.json();
+    const response = await request.json();
+    if (request.ok) {
+        return response;
+    } else {
+        throw new Error("Failed to create branch in Bitbucket Server: " + JSON.stringify(response));
+    }
 }
 
 async function getGithubCloudBranchPage(apiUrl: string, accessToken: string, page: number) {
