@@ -3,7 +3,7 @@
 ### Description
 
 This is a Node.js app that will listen for requests from Octane. Once a request is received, it will start the process
-of creating a branch in the selected repository and Octane. Currently, this tool will only create branches in:
+of creating a branch in the selected repository and in Octane. Currently, this tool will only create branches in:
 
 * Bitbucket Server
 * Bitbucket Cloud
@@ -38,7 +38,7 @@ Required parameters in the `.env` file:
   You will need to create
   a [Personal Access Token](https://confluence.atlassian.com/bitbucketserver/personal-access-tokens-939515499.html). We
   recommend creating a new "bot" user which has access to all the repositories in which you want to create branches and
-  getting the Personal Access Token for that user instead of creating it for a real user. The minimum Permission the
+  getting the Personal Access Token for that user instead of creating it for a real user. The minimum Permissions the
   token needs to have is `Read` for Projects and `Write` for Repositories
 
 * `BITBUCKET_SERVER_REPOSITORIES`:
@@ -56,8 +56,9 @@ Required parameters in the `.env` file:
 * `BITBUCKET_CLOUD_CLIENT_ID` & `BITBUCKET_CLOUD_CLIENT_SECRET`: You will need to create an
   [Oauth consumer](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
   The Callback URL needs to be `http://<appUrl>:<appPort>/login/bitbucket/cloud/callback` where `<appUrl>`
-  and  `<appPort>` are the url and port of this app. The minimum Permission required are `Read` for Projects and `Write`
-  for Repositories. Once the Oauth consumer was created, click on the consumer name in bitbucket and copy the **Key**
+  and  `<appPort>` are the url and port of this app. The minimum Permissions required are `Read` for Projects
+  and `Write`
+  for Repositories. Once the Oauth consumer was created, click on the consumer name in Bitbucket and copy the **Key**
   and **Secret**.
 
 
@@ -119,8 +120,8 @@ Required parameters in the `.env` file:
 
 * `DOES_OCTANE_SUPPORT_BRANCHES`: If set to `true`, it will make this app also create a branch entity in Octane after
   successfully creating the branch in the repository, but since Octane only recently started supporting branches, you
-  need check if your Octane version has this functionality. An easy way to check is going to the Team Backlog or opening
-  a work item (e.g. User Story) and checking if you have a branches tab. If your Octane version does not support
+  need to check if your Octane version has this functionality. An easy way to check is going to the Team Backlog or
+  opening a work item (e.g. User Story) and checking if you have a branches tab. If your Octane version does not support
   branches, this field should be set to `false` in which case the other octane related parameters become irrelevant.
 * `OCTANE_URL`: the url to Octane. Example: `OCTANE_URL=http://myOctaneServer:8080`
 * `OCTANE_SHARED_SPACES`, `OCTANE_USERS` & `OCTANE_PASSWORDS`: Comma
@@ -136,7 +137,7 @@ Once all the `.env` parameters were set, you can start the app by running `npm s
 
 ## Limitations
 
-* This cannot create a branch in Octane if Octane does not support branches
+* This application cannot create a branch in Octane if Octane does not support branches
 * If there already exists a branch in Octane with the same name and for the same repository, but not in the actual
   repository (e.g. an existing branch was deleted), when creating the branch in Octane, the operation might fail (
   depending on the Octane version). You might need to go to the existing branch and update it (mark it as not deleted).
