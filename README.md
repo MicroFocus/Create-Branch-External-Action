@@ -20,7 +20,8 @@ of creating a branch in the selected repository and Octane. Currently, this tool
 
 ### Configuration
 
-Once this repository is cloned, create an `.env` file in the project root directory. Copy the content of the `env.txt`
+First, you need to clone this repository and run `npm install`. Then you need to create an `.env` file in the project
+root directory. Copy the content of the `env.txt`
 file in the newly created `.env` file. This application
 uses [cookie session](https://www.npmjs.com/package/cookie-session)
 which encrypts some data and saves it in a cookie. This encryption is done using the `COOKIE_SECRET` parameter. You need

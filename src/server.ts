@@ -27,7 +27,7 @@ const githubCloudClientSecret = process.env.GITHUB_CLOUD_CLIENT_SECRET;
 const bitbucketCloudClientId = process.env.BITBUCKET_CLOUD_CLIENT_ID;
 const bitbucketCloudClientSecret = process.env.BITBUCKET_CLOUD_CLIENT_SECRET;
 
-const doesOctaneSupportBranches = process.env.DOES_OCTANE_SUPPORT_BRANCHES || false;
+const doesOctaneSupportBranches = process.env.DOES_OCTANE_SUPPORT_BRANCHES === "true";
 
 
 app.get("/login/bitbucket/cloud", (req, res) => {
@@ -485,7 +485,7 @@ app.get("/repo_select", async (req, res) => {
 })
 
 function createBranchSelectRadiosSection(patterns: Entity[]): string {
-    if (!patterns)
+    if (!patterns || patterns.length === 0)
         return ""
 
     let radios = "<section><h2>Select the pattern to use</h2>";
@@ -551,7 +551,7 @@ function sendErrorMessage(res: express.Response, errorMessage: string, errorCaus
 }
 
 
-function getSuccesfullyCreatedBranchPage() {
+function getSuccessfullyCreatedBranchPage() {
     return getStyle() +
         `<div class="banner">Create Branch</div>` +
         `<div class="content successMessage"><span>Branch created successfully!</span></div>` +
@@ -563,14 +563,14 @@ async function getCreateBranchInOctaneResponse(req: express.Request, res: expres
         console.log("Creating branch in Octane...")
         const entityCreateEntitiesResponse = await createOctaneBranch(req.session.sharedSpaceId, req.session.workspaceId, req.session.entityId, req.body.branchName, req.session.repoUrl);
         if (!entityCreateEntitiesResponse.errors) {
-            res.send(getSuccesfullyCreatedBranchPage());
+            res.send(getSuccessfullyCreatedBranchPage());
         } else {
             throw new Error("The branch was created in the SCM Repository, but an error occurred while creating the branch in Octane." +
                 "Please check if there was an existing branch with the same name for the same repository. If there is, you might need to update its delete status. " +
                 "Additional info: :" + JSON.stringify(entityCreateEntitiesResponse.errors))
         }
     } else {
-        res.send(getSuccesfullyCreatedBranchPage())
+        res.send(getSuccessfullyCreatedBranchPage())
     }
 }
 
