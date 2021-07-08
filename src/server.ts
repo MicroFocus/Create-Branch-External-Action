@@ -15,17 +15,28 @@
  */
 
 import express from "express";
-import fetch from "node-fetch";
 import cookieSession from "cookie-session";
 import bodyParser from "body-parser"
-import {getOctaneFromEnv} from "./OctaneSDK/octane-utilities";
-import {Entity, FetchParameters, ReferenceEntity} from "./OctaneSDK/octane-scope";
+import {Entity} from "./OctaneSDK/octane-scope";
 import {getBranchNameFromPatternWithId} from "./Services/common-utilities";
-import {convertBitbucketCloudRepoUrlToApiUrl} from "./Services/bitbucket-cloud-service";
-import {OctaneWorkspace} from "./OctaneSDK/octane-workspace";
-import {convertGithubCloudRepoUrlToApiUrl} from "./Services/github-cloud";
-import {convertBitbucketServerRepoUrlToApiUrl} from "./Services/bitbucket-server-services";
-import {Headers} from "got";
+import {
+    convertBitbucketCloudRepoUrlToApiUrl,
+    createBitbucketCloudBranch,
+    getAllBitbucketCloudBranches,
+    getBitbucketCloudAccessToken
+} from "./Services/bitbucket-cloud-service";
+import {
+    convertGithubCloudRepoUrlToApiUrl,
+    createGitHubCloudBranch,
+    getAllGithubCloudBranches,
+    getGithubCloudAccessToken
+} from "./Services/github-cloud-services";
+import {
+    convertBitbucketServerRepoUrlToApiUrl,
+    createBitbucketServerBranch,
+    getAllBitbucketServerBranches
+} from "./Services/bitbucket-server-services";
+import {createOctaneBranch, getOctaneScmPatternsForBranches} from "./Services/octane-services";
 
 const urlencodedParser = bodyParser.urlencoded({extended: false});
 
@@ -45,298 +56,32 @@ const bitbucketCloudClientSecret = process.env.BITBUCKET_CLOUD_CLIENT_SECRET;
 
 const doesOctaneSupportBranches = process.env.DOES_OCTANE_SUPPORT_BRANCHES === "true";
 
-
+/**
+ * Endpoint for starting the Bitbucket Cloud Oauth Login
+ */
 app.get("/login/bitbucket/cloud", (req, res) => {
     res.redirect(
         `https://bitbucket.org/site/oauth2/authorize?client_id=${bitbucketCloudClientId}&response_type=code`
     );
 });
 
-app.get("/login/github", (req, res) => {
-    const redirectUri = req.protocol + "://" + req.get('host') + "/login/github/callback";
+/**
+ * Endpoint for starting the Github Cloud Oauth Login
+ */
+app.get("/login/github/cloud", (req, res) => {
+    const redirectUri = req.protocol + "://" + req.get('host') + "/login/github/cloud/callback";
     res.redirect(
         `https://github.com/login/oauth/authorize?client_id=${githubCloudClientId}&redirect_uri=${redirectUri}&scope=repo`
     );
 });
 
-async function getBitbucketCloudAccessToken(code: string, clientId: string, clientSecret: string) {
-    console.log("Fetching AccessToken");
-
-    interface AccessTokenType {
-        [key: string]: any;
-
-        grant_type: string;
-        code: string
-    }
-
-    const data: AccessTokenType = {
-        grant_type: "authorization_code",
-        code
-    };
-    const searchParams = Object.keys(data).map((key) => {
-        return encodeURIComponent(key) + '=' + encodeURIComponent(data[key]);
-    }).join('&');
-    const credentials = Buffer.from(clientId + ":" + clientSecret);
-    const base64Credentials = credentials.toString('base64');
-    const request = await fetch("https://bitbucket.org/site/oauth2/access_token", {
-        method: "POST",
-        headers: {
-            "Authorization": "basic " + base64Credentials,
-            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
-        },
-        body: searchParams
-    });
-
-    const response = await request.json();
-    if (!request.ok || !response.hasOwnProperty("access_token")) {
-        console.error(JSON.stringify(response));
-        throw new Error("Request failed while getting the access token from Bitbucket Cloud:" + JSON.stringify(response));
-    }
-    return response.access_token;
-}
-
-async function getGithubCloudAccessToken(code: string, clientId: string, clientSecret: string) {
-    console.log("Fetching AccessToken");
-    const request = await fetch("https://github.com/login/oauth/access_token", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        },
-        body: JSON.stringify({
-            client_id: clientId,
-            client_secret: clientSecret,
-            code
-        })
-    });
-    const response = await request.json();
-    if (request.ok && response.hasOwnProperty("access_token")) {
-        return response.access_token
-    }
-    throw new Error("Something went wrong while getting the Github Cloud Access Token: " + JSON.stringify(response))
-}
-
-async function createGitHubBranch(token: string, url: string, name: string, sha: string) {
-
-    const ref = `refs/heads/${name}`
-    console.log("sha:" + JSON.stringify(sha));
-    const request = await fetch(`${url}/git/refs`, {
-        method: "POST",
-        headers: {
-            Authorization: "token " + token
-        },
-        body: JSON.stringify({
-            ref,
-            sha
-        })
-    });
-    const response = await request.json();
-    if (request.ok) {
-        return response;
-    } else {
-        throw new Error("Request to create a Github Cloud branch failed:" + JSON.stringify(response))
-    }
-}
-
-
-async function createBitbucketCloudBranch(accessToken: string, repoUrl: string, branchName: string, hash: string) {
-    const request = await fetch(`${repoUrl}/refs/branches`, {
-        method: "POST",
-        headers: {
-            Authorization: "Bearer " + accessToken,
-            "Content-Type": 'application/json',
-        },
-        body: JSON.stringify({
-            name: branchName,
-            target: {hash}
-        })
-    })
-    const response = await request.json();
-    if (request.ok) {
-        return response;
-    } else {
-        throw new Error("Failed to create branch in Bitbucket Cloud: " + JSON.stringify(response));
-    }
-}
-
-async function createBitbucketServerBranch(accessToken: string, repoUrl: string, branchName: string, startPoint: string) {
-    const request = await fetch(`${repoUrl}/branches`, {
-        method: "POST",
-        headers: {
-            Authorization: "Bearer " + accessToken,
-            "Content-Type": 'application/json',
-        },
-        body: JSON.stringify({
-            name: branchName,
-            startPoint
-        })
-    })
-    const response = await request.json();
-    if (request.ok) {
-        return response;
-    } else {
-        throw new Error("Failed to create branch in Bitbucket Server: " + JSON.stringify(response));
-    }
-}
-
-async function getGithubCloudBranchPage(apiUrl: string, accessToken: string, page: number, maxItemsInPage: number) {
-    console.log("Getting Github Cloud branch page " + page);
-    const branchesUrl = `${apiUrl}/branches?page=${page}&per_page=${maxItemsInPage}`;
-    const request = await fetch(branchesUrl, {
-        headers: {
-            Authorization: "token " + accessToken
-        }
-    });
-    const response = await request.json()
-    if (!request.ok) {
-        throw new Error("Request to Github Cloud failed:" + JSON.stringify(response));
-    }
-    return response
-
-}
-
-async function getAllGithubBranches(accessToken: string, apiUrl: string): Promise<GithubBranches[]> {
-    console.log("Getting git branches");
-    let allBranches: GithubBranches[] = [];
-    let page = 1;
-    let githubCloudResponse
-    const githubCloudGetLimit = Number(process.env.GITHUB_CLOUD_GET_LIMIT);
-    const maxItemsInPage = Number.isNaN(githubCloudGetLimit) ? 100 : githubCloudGetLimit;
-    do {
-        githubCloudResponse = await getGithubCloudBranchPage(apiUrl, accessToken, page++, maxItemsInPage);
-        allBranches = allBranches.concat(githubCloudResponse);
-    } while (githubCloudResponse.length > 0)
-
-    if (allBranches.length > 0) {
-        return allBranches
-    } else {
-        throw new Error(`No branches returned by Github Cloud using the ${apiUrl} base api. Please check that the repository has at least one branch.`)
-    }
-}
-
-interface GithubCommit {
-    sha: string,
-    url: string
-}
-
-interface GithubBranches {
-    name: string,
-    commit: GithubCommit
-}
-
-interface BitbucketCloudCommit {
-    hash: string
-}
-
-interface BitbucketCloudBranch {
-    name: string,
-    target: BitbucketCloudCommit
-}
-
-interface BitbucketServerBranch {
-    displayId: string,
-    id: string
-}
-
-async function getBitbucketCloudBranchPage(branchesUrl: string, accessToken: string): Promise<BitbucketCloudPagedResponse> {
-    console.log("Getting bitbucket cloud branch page from:" + branchesUrl);
-    const request = await fetch(branchesUrl, {
-        headers: {
-            Authorization: "Bearer " + accessToken
-        }
-    });
-    const response = await request.json();
-
-    if (!request.ok) {
-        throw new Error("Request to Bitbucket Cloud failed:" + JSON.stringify(response));
-    }
-    if (response.hasOwnProperty("values")) {
-        return response
-    } else {
-        throw new Error("No branches returned");
-    }
-}
-
-interface BitbucketCloudPagedResponse {
-    next?: string,
-    values: []
-}
-
-async function getAllBitbucketCloudBranches(accessToken: string, apiUrl: string): Promise<BitbucketCloudBranch[]> {
-    console.log("Getting git branches");
-    let allBranches: BitbucketCloudBranch[] = [];
-    const bitbucketCloudGetLimit = Number(process.env.BITBUCKET_CLOUD_GET_LIMIT);
-    const maxItemsInPage = Number.isNaN(bitbucketCloudGetLimit) ? 100 : bitbucketCloudGetLimit;
-    const branchesUrl = `${apiUrl}/refs/branches?pagelen=${maxItemsInPage}&sort=-target.date`;
-    let bitbucketCloudResponsePage: BitbucketCloudPagedResponse = {values: [], next: branchesUrl};
-    do {
-        bitbucketCloudResponsePage = await getBitbucketCloudBranchPage(bitbucketCloudResponsePage.next, accessToken);
-        allBranches = allBranches.concat(bitbucketCloudResponsePage.values);
-    } while (!!bitbucketCloudResponsePage.next)// while there is a next page
-
-    if (allBranches.length > 0) {
-        return allBranches
-    } else {
-        throw new Error(`No branches returned by Bitbucket Cloud using the ${apiUrl} base api. Please check that the repository has at least one branch.`)
-    }
-}
-
-
-interface BitbucketServerPagedResponse {
-    isLastPage: boolean,
-    values: [],
-    nextPageStart?: number
-}
-
-async function getBitbucketServerBranchPage(apiUrl: any, accessToken: any, limit: number, start: number): Promise<BitbucketServerPagedResponse> {
-    console.log("Getting bitbucket server branch page from start:" + start);
-    const branchesUrl = new URL(`${apiUrl}/branches`);
-    const params = {limit: limit.toString(), start: start.toString(), orderBy: "MODIFICATION"};
-    branchesUrl.search = new URLSearchParams(params).toString()
-
-    const request = await fetch(branchesUrl, {
-        headers: {
-            Authorization: "Bearer " + accessToken
-        }
-    });
-    const response = await request.json();
-
-    if (!request.ok) {
-        throw new Error("Request to Bitbucket Server failed:" + JSON.stringify(response));
-    }
-    if (!response.hasOwnProperty("values")) {
-        throw new Error("There was an error while getting the Bitbucket Server branches. No values returned:" + JSON.stringify(response))
-    }
-    if (!response.hasOwnProperty("isLastPage")) {
-        throw new Error("There was an error while getting the Bitbucket Server branches. No 'isLastPage' value returned:" + JSON.stringify(response))
-    } else {
-        if (!response.isLastPage && !response.hasOwnProperty("nextPageStart")) {
-            throw new Error("There was an error while getting the Bitbucket Server branches. No 'nextPage' value returned:" + JSON.stringify(response))
-        }
-    }
-
-    return response
-}
-
-async function getAllBitbucketServerBranches(accessToken: any, apiUrl: any): Promise<BitbucketServerBranch[]> {
-    console.log("Getting git branches");
-    let allBranches: BitbucketServerBranch[] = [];
-    const bitbucketServerGetLimit = Number(process.env.BITBUCKET_SERVER_GET_LIMIT);
-    const maxItemsInPage = Number.isNaN(bitbucketServerGetLimit) ? 1000 : bitbucketServerGetLimit;
-    let bitbucketServerResponsePage: BitbucketServerPagedResponse = {values: [], isLastPage: false, nextPageStart: 0};
-    do {
-        bitbucketServerResponsePage = await getBitbucketServerBranchPage(apiUrl, accessToken, maxItemsInPage, bitbucketServerResponsePage.nextPageStart);
-        allBranches = allBranches.concat(bitbucketServerResponsePage.values);
-    } while (!bitbucketServerResponsePage.isLastPage)
-
-
-    if (allBranches.length > 0) {
-        return allBranches
-    } else {
-        throw new Error(`No branches returned by Bitbucket Server using the ${apiUrl} base api. Please check that the repository has at least one branch.`)
-    }
-}
-
+/**
+ * Endpoint for getting the Bitbucket Server base branch and validating the name of the new branch
+ *
+ * The following request session variables are expected to be set:
+ * req.session.apiUrl - the base url for rest requests
+ * req.session.branchName - the name of the new branch
+ */
 app.get("/login/bitbucket/server/callback", async (req, res) => {
     req.session.access_token = process.env.BITBUCKET_SERVER_PERSONAL_ACCESS_TOKEN;
     try {
@@ -351,11 +96,23 @@ app.get("/login/bitbucket/server/callback", async (req, res) => {
 
 });
 
+/**
+ * Endpoint for the Bitbucket Cloud Oauth redirect
+ * This will get the Bitbucket Cloud base branch and validating the name of the new branch
+ *
+ * The following request session variables are expected to be set:
+ * req.session.apiUrl - the base url for rest requests
+ * req.session.branchName - the name of the new branch
+ */
 app.get("/login/bitbucket/cloud/callback", async (req, res) => {
     try {
+        if (!!req.query.error || !req.query.code) {
+            sendErrorMessage(res, "Failed to get the authentication code form Bitbucket Cloud", req.query)
+            return
+        }
+
         const code = req.query.code.toString();
         req.session.access_token = await getBitbucketCloudAccessToken(code, bitbucketCloudClientId, bitbucketCloudClientSecret);
-
         const allBranchesForRepo = await getAllBitbucketCloudBranches(req.session.access_token, req.session.apiUrl)
         const selectMap = allBranchesForRepo.map(branch => {
             return {id: branch.target.hash, text: branch.name}
@@ -367,6 +124,42 @@ app.get("/login/bitbucket/cloud/callback", async (req, res) => {
     }
 });
 
+/**
+ * Endpoint for the Github Cloud Oauth redirect
+ * This will get the Github Cloud base branch and validating the name of the new branch
+ *
+ * The following request session variables are expected to be set:
+ * req.session.apiUrl - the base url for rest requests
+ * req.session.branchName - the name of the new branch
+ */
+app.get("/login/github/cloud/callback", async (req, res) => {
+    try {
+        if (!!req.query.error || !req.query.code) {
+            sendErrorMessage(res, "Failed to get the authentication code form Github Cloud", req.query)
+            return
+        }
+
+        const code = req.query.code.toString();
+        req.session.access_token = await getGithubCloudAccessToken(code, githubCloudClientId, githubCloudClientSecret);
+        const allBranchesForRepo = await getAllGithubCloudBranches(req.session.access_token, req.session.apiUrl)
+        const selectBranchesList = allBranchesForRepo.map(branch => {
+            return {id: branch.commit.sha, text: branch.name}
+        })
+        const branchName = req.session.branchName;
+        respondWithBaseBranchForm(res, selectBranchesList, branchName, "createGithubCloudBranch");
+    } catch (e) {
+        sendErrorMessage(res, "Failed to get branches from Github Cloud", e);
+    }
+});
+
+/**
+ * Responds with a form which contains a searchable list of base branches and the name of the new branch
+ *
+ * res - the express response object which will send the form
+ * selectBranchesList - list of base branches which will be present in the form
+ * branchName - the name of the new branch
+ * createBranchPath - the path where the POST request will occur when submitting the form
+ */
 function respondWithBaseBranchForm<ResBody, Locals>(res: express.Response, selectBranchesList: { id: string; text: string; selected?: boolean }[], branchName: string, createBranchPath: string) {
     selectBranchesList[0].selected = true;
     res.send(
@@ -396,26 +189,6 @@ function respondWithBaseBranchForm<ResBody, Locals>(res: express.Response, selec
     )
 }
 
-app.get("/login/github/callback", async (req, res) => {
-    try {
-        if (!!req.query.error || !req.query.code) {
-            sendErrorMessage(res, "Failed to get the authentication code form Github Cloud", req.query)
-            return
-        }
-
-        const code = req.query.code.toString();
-        req.session.access_token = await getGithubCloudAccessToken(code, githubCloudClientId, githubCloudClientSecret);
-        const allBranchesForRepo = await getAllGithubBranches(req.session.access_token, req.session.apiUrl)
-        const selectBranchesList = allBranchesForRepo.map(branch => {
-            return {id: branch.commit.sha, text: branch.name}
-        })
-        const branchName = req.session.branchName;
-        respondWithBaseBranchForm(res, selectBranchesList, branchName, "createGithubBranch");
-    } catch (e) {
-        sendErrorMessage(res, "Failed to get branches from Github Cloud", e);
-    }
-});
-
 function convertWorkItemSubtypeToPatternEntityType(subtype: string) {
     switch (subtype) {
         case "story":
@@ -425,7 +198,9 @@ function convertWorkItemSubtypeToPatternEntityType(subtype: string) {
     }
 }
 
-
+/**
+ * Makes an HTML string containing radio buttons out of the configured repositories
+ */
 function createReposSelectRadios() {
     const splitAndTrim = (longString: string) => longString?.split(',').map((value) => value.trim());
     const bbCloudRepos = splitAndTrim(process.env.BITBUCKET_CLOUD_REPOSITORIES);
@@ -464,6 +239,16 @@ function createReposSelectRadios() {
 
 }
 
+/**
+ * Endpoint that represents the starting point of the program
+ * It returns a form for selecting the repository in which the branch will be created and, if available, the octane pattern to be used
+ * It expects the following request query parameters:
+ * req.query.shared_space_id - the octane shared space id from which the request comes from
+ * req.query.workspace_id - the octane workspace id from which the request comes from
+ * req.query.entity_id - the id of the work item for which the branch is created
+ * req.query.subtype - the subtype of the work item for which the branch is created
+ * req.query.name - the name of the work item for which the branch is created
+ */
 app.get("/repo_select", async (req, res) => {
     try {
         const subtype = req.query.subtype.toString();
@@ -500,6 +285,9 @@ app.get("/repo_select", async (req, res) => {
     }
 })
 
+/**
+ * Makes an HTML string containing radio buttons out of the array of patterns given as parameter
+ */
 function createBranchSelectRadiosSection(patterns: Entity[]): string {
     if (!patterns || patterns.length === 0)
         return ""
@@ -517,6 +305,11 @@ function createBranchSelectRadiosSection(patterns: Entity[]): string {
     return radios
 }
 
+/**
+ * Endpoint that is called after the repository and pattern were selected
+ * It decodes which type of repository was selected (GithubCloud/BitbucketServer/BitbucketCloud) and it redirects to
+ * the appropriate starting endpoint
+ */
 app.post("/repo_selected", urlencodedParser, async (req, res) => {
     const defaultPrefix = convertWorkItemSubtypeToPatternEntityType(req.session.subtype);
     const branchName = getBranchNameFromPatternWithId(req.body.pattern_selection, req.session.entityId, req.session.name, defaultPrefix)
@@ -527,7 +320,7 @@ app.post("/repo_selected", urlencodedParser, async (req, res) => {
         req.session.repoUrl = repoUrl
         req.session.apiUrl = convertGithubCloudRepoUrlToApiUrl(repoUrl)
         req.session.branchName = branchName;
-        res.redirect("/login/github")
+        res.redirect("/login/github/cloud")
     } else if (repo.startsWith("BITBUCKET_SERVER_REPOSITORIES_")) {
         // creat bb server branch
         const repoUrl = repo.replace("BITBUCKET_SERVER_REPOSITORIES_", "")
@@ -547,6 +340,9 @@ app.post("/repo_selected", urlencodedParser, async (req, res) => {
     console.log(JSON.stringify(req.body))
 })
 
+/**
+ * Responds with an error page
+ */
 function sendErrorMessage(res: express.Response, errorMessage: string, errorCause: any) {
 
     let additionalInformation = ""
@@ -560,13 +356,15 @@ function sendErrorMessage(res: express.Response, errorMessage: string, errorCaus
     res.send(
         getStyle() +
         `<div class="banner">Create Branch</div>` +
-        "<div class='error'><span class='errorMessage'>" +
+        "<div class='content error'><span class='errorMessage'>" +
         errorMessage +
         "</span><br><span class='errorCause'>" +
         "Additional information:<br>" + additionalInformation + "</span></div>")
 }
 
-
+/**
+ * Makes a "successfully created" HTML page
+ */
 function getSuccessfullyCreatedBranchPage() {
     return getStyle() +
         `<div class="banner">Create Branch</div>` +
@@ -574,7 +372,10 @@ function getSuccessfullyCreatedBranchPage() {
         `</div><button class="close" onclick="window.close()">Close Window</button>`;
 }
 
-async function getCreateBranchInOctaneResponse(req: express.Request, res: express.Response) {
+/**
+ * If supported, it creates the branch in octane and responds accordingly
+ */
+async function createBranchInOctaneResponse(req: express.Request, res: express.Response) {
     if (doesOctaneSupportBranches) {
         console.log("Creating branch in Octane...")
         const entityCreateEntitiesResponse = await createOctaneBranch(req.session.sharedSpaceId, req.session.workspaceId, req.session.entityId, req.body.branchName, req.session.repoUrl);
@@ -590,110 +391,48 @@ async function getCreateBranchInOctaneResponse(req: express.Request, res: expres
     }
 }
 
-app.post("/createGithubBranch", urlencodedParser, async (req, res) => {
+/**
+ * Endpoint for starting the branch creation process in Github Cloud
+ */
+app.post("/createGithubCloudBranch", urlencodedParser, async (req, res) => {
     try {
-        const branchResult = await createGitHubBranch(req.session.access_token, req.session.apiUrl, req.body.branchName, req.body.sha);
+        const branchResult = await createGitHubCloudBranch(req.session.access_token, req.session.apiUrl, req.body.branchName, req.body.sha);
         console.log(JSON.stringify(branchResult))
         console.log("Branch created in Github Cloud.")
-        await getCreateBranchInOctaneResponse(req, res);
+        await createBranchInOctaneResponse(req, res);
     } catch (e) {
         sendErrorMessage(res, "Failed to create the branch", e);
     }
 })
 
-
+/**
+ * Endpoint for starting the branch creation process in Bitbucket Cloud
+ */
 app.post("/createBitbucketCloudBranch", urlencodedParser, async (req, res) => {
     try {
         const branchResult = await createBitbucketCloudBranch(req.session.access_token, req.session.apiUrl, req.body.branchName, req.body.sha);
         console.log(JSON.stringify(branchResult))
         console.log("Branch created in Bitbucket Cloud.")
-        await getCreateBranchInOctaneResponse(req, res);
+        await createBranchInOctaneResponse(req, res);
     } catch (e) {
         sendErrorMessage(res, "Failed to create the branch", e);
     }
 })
 
+/**
+ * Endpoint for starting the branch creation process in Bitbucket Server
+ */
 app.post("/createBitbucketServerBranch", urlencodedParser, async (req, res) => {
     try {
         const branchResult = await createBitbucketServerBranch(req.session.access_token, req.session.apiUrl, req.body.branchName, req.body.sha);
         console.log(JSON.stringify(branchResult))
         console.log("Branch created in the Bitbucket Server.")
-        await getCreateBranchInOctaneResponse(req, res);
+        await createBranchInOctaneResponse(req, res);
     } catch (e) {
         sendErrorMessage(res, "Failed to create the branch", e);
     }
 })
 
-
-async function createOctaneBranch(sharedSpaceId: number, workspaceId: number, workItemId: string, branchName: string, repoUrl: string) {
-    // Usually, this header should not be used.
-    const apiHeader: Headers = {'ALM-OCTANE-PRIVATE': "true"}
-    const octaneSharedSpace = await getOctaneFromEnv(sharedSpaceId, apiHeader);
-    const octaneWorkspace = octaneSharedSpace.workspace(workspaceId);
-    const repository = await getOctaneRootRepository(octaneWorkspace, repoUrl);
-    return await octaneWorkspace.createEntities("scm_repositories", [
-        {
-            name: branchName,
-            repository,
-            work_items: {
-                data: [{
-                    id: workItemId,
-                    type: "work_item"
-                }]
-            }
-        }
-    ]);
-}
-
-
-async function createRootRepository(octaneWorkspace: OctaneWorkspace, repoUrl: string): Promise<ReferenceEntity> {
-    const response = await octaneWorkspace.createEntities("scm_repository_roots", [{
-        name: repoUrl,
-        url: repoUrl,
-        scm_type: 2
-    }])
-    if (response.total_count === 1) {
-        console.log("Created root repository:" + JSON.stringify(response.data[0]))
-        return response.data[0]
-    }
-
-    throw new Error("Failed to create root repository:" + JSON.stringify(response));
-}
-
-async function getOctaneRootRepository(octaneWorkspace: OctaneWorkspace, repoUrl: string): Promise<ReferenceEntity> {
-    console.log("Getting root repository")
-    const response = await octaneWorkspace.fetchCollection("scm_repository_roots", {
-        query: `"(url EQ '${repoUrl}')"`
-    })
-    if (response.total_count === 1) {
-        console.log("Found root repository:" + JSON.stringify(response.data[0]))
-        return response.data[0];
-    }
-
-    if (response.total_count === 0) {
-        console.log("Creating root repository")
-        return createRootRepository(octaneWorkspace, repoUrl);
-    }
-
-    throw new Error("Failed to get root repository");
-}
-
-async function getOctaneScmPatternsForBranches(sharedSpaceId: number, workspaceId: number, entityType: string) {
-    // Usually, this header should not be used. In this case, there is currently no other way of getting the scm patterns
-    const apiHeader: Headers = {'ALM-OCTANE-PRIVATE': "true"}
-    const octaneSharedSpace = await getOctaneFromEnv(sharedSpaceId, apiHeader);
-    const octaneWorkspace = octaneSharedSpace.workspace(workspaceId);
-
-    const queryParameters: FetchParameters = {
-        fields: ["pattern", "entity_type", "applies_to"],
-        query: "\"(" +
-            `entity_type EQ {(id EQ 'list_node.scm_commit_pattern_entity_type.${entityType}')}` +
-            ";" +
-            "applies_to EQ {(id EQ 'list_node.commit_pattern.applies_to.branch')}" +
-            ")\""
-    }
-    return octaneWorkspace.fetchCollection("scm_commit_patterns", queryParameters);
-}
 
 function getStyle() {
     return `<style>
@@ -797,7 +536,8 @@ div.banner{
     font-size: 30px;
     font-weight: 600;
     margin: 0;
-    padding: 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
 }
 
 div.successMessage{
@@ -806,6 +546,13 @@ background-color: lightgreen;
 padding: 10px 200px;
 width: fit-content;
 text-align: center;
+}
+
+div.error{
+
+color:darkred;
+background-color: lightpink;
+    text-align: center;
 }
 
 button.close{

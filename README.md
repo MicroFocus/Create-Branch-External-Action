@@ -26,7 +26,8 @@ file in the newly created `.env` file. This application
 uses [cookie session](https://www.npmjs.com/package/cookie-session)
 which encrypts some data and saves it in a cookie. This encryption is done using the `COOKIE_SECRET` parameter. You need
 to assign a random string to this parameter. You can also set the `PORT` variable if you want the app to run on another
-port (the default being port 9000)
+port (the default being port 9000).
+
 Next, you need to configure at least one of the following 3 options: [Bitbucket Server](#bitbucket-server)
 , [Bitbucket Cloud](#bitbucket-cloud) or [Github Cloud](#github-cloud)
 
@@ -76,7 +77,7 @@ Required parameters in the `.env` file:
 
 * `GITHUB_CLOUD_CLIENT_ID` & `GITHUB_CLOUD_CLIENT_SECRET`: You will need to create an
   [Oauth app](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
-  The Callback URL needs to be `http://<appUrl>:<appPort>/login/bitbucket/cloud/callback` where `<appUrl>`
+  The Callback URL needs to be `http://<appUrl>:<appPort>/login/github/cloud/callback` where `<appUrl>`
   and  `<appPort>` are the url and port of this app. Once the Oauth app was created, you will also need to generate a
   client secret. Copy the
   `Client ID` and the generated client secret in the `.env` file
