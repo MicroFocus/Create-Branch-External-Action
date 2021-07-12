@@ -138,7 +138,7 @@ Once all the `.env` parameters were set, you can start the app by running `npm s
 
 ## Limitations
 
-* This application cannot create a branch in Octane if Octane does not support branches
+* This application cannot create a branch in Octane if your Octane version does not support branches.
 * If there already exists a branch in Octane with the same name and for the same repository, but not in the actual
   repository (e.g. an existing branch was deleted), when creating the branch in Octane, the operation might fail (
   depending on the Octane version). You might need to go to the existing branch and update it (mark it as not deleted).
