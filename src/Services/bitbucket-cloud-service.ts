@@ -28,6 +28,10 @@ function disassembleBitBucketCloudRepoUrl(repoUrl: string): BitbucketCloudRepoUr
     // example url https://user@bitbucket.org/workspace/repo.git
     const disassembleRegex = new RegExp("(https|http)://((.*?)@)?(.*?)/(.*?)/(.*?).git")
     const matchedUrl = repoUrl.match(disassembleRegex);
+    if (matchedUrl === null) {
+        throw new Error("The repository url \"" + repoUrl + "\" could not be parsed correctly. " +
+            "Example of a correct repository url: \"https://user@bitbucket.org/workspace/repo.git\"")
+    }
     // at index 0: https://user@bitbucket.org/workspace/repo.git,
     // at index 1: https,
     // at index 2: user@,

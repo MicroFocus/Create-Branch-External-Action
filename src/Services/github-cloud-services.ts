@@ -27,10 +27,14 @@ function disassembleGithubCloudRepoUrl(repoUrl: string): GithubCloudRepoUrl {
     // example url https://github.com/MeMyselfAndI/MyRepo.git
     const disassembleRegex = new RegExp("(https|http)://(.*?)/(.*?)/(.*?).git")
     const matchedUrl = repoUrl.match(disassembleRegex);
-    // at index 0: https://github.com/MeMyselfAndI/MyRepo.git
+    if (matchedUrl === null) {
+        throw new Error("The repository url \"" + repoUrl + "\" could not be parsed correctly. " +
+            "Example of a correct repository url: \"https://github.com/MyUser/MyRepo.git\"")
+    }
+    // at index 0: https://github.com/MyUser/MyRepo.git
     // at index 1: https,
     // at index 2: github.com,
-    // at index 3: MeMyselfAndI,
+    // at index 3: MyUser,
     // at index 4: MyRepo
 
     const protocol = matchedUrl[1]

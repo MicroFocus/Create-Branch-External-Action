@@ -311,33 +311,37 @@ function createBranchSelectRadiosSection(patterns: Entity[]): string {
  * the appropriate starting endpoint
  */
 app.post("/repo_selected", urlencodedParser, async (req, res) => {
-    const defaultPrefix = convertWorkItemSubtypeToPatternEntityType(req.session.subtype);
-    const branchName = getBranchNameFromPatternWithId(req.body.pattern_selection, req.session.entityId, req.session.name, defaultPrefix)
-    const repo = req.body.repo;
-    if (repo.startsWith("GITHUB_CLOUD_REPOSITORIES_")) {
-        // create github branch
-        const repoUrl = repo.replace("GITHUB_CLOUD_REPOSITORIES_", "");
-        req.session.repoUrl = repoUrl
-        req.session.apiUrl = convertGithubCloudRepoUrlToApiUrl(repoUrl)
-        req.session.branchName = branchName;
-        res.redirect("/login/github/cloud")
-    } else if (repo.startsWith("BITBUCKET_SERVER_REPOSITORIES_")) {
-        // creat bb server branch
-        const repoUrl = repo.replace("BITBUCKET_SERVER_REPOSITORIES_", "")
-        req.session.repoUrl = repoUrl
-        req.session.apiUrl = convertBitbucketServerRepoUrlToApiUrl(repoUrl)
-        req.session.branchName = branchName;
-        res.redirect("/login/bitbucket/server/callback")
-    } else if (repo.startsWith("BITBUCKET_CLOUD_REPOSITORIES_")) {
-        // creat bb cloud branch
-        const repoUrl = repo.replace("BITBUCKET_CLOUD_REPOSITORIES_", "");
-        req.session.repoUrl = repoUrl
-        req.session.apiUrl = convertBitbucketCloudRepoUrlToApiUrl(repoUrl);
-        req.session.branchName = branchName;
-        res.redirect("/login/bitbucket/cloud")
+    try {
+        const defaultPrefix = convertWorkItemSubtypeToPatternEntityType(req.session.subtype);
+        const branchName = getBranchNameFromPatternWithId(req.body.pattern_selection, req.session.entityId, req.session.name, defaultPrefix)
+        const repo = req.body.repo;
+        if (repo.startsWith("GITHUB_CLOUD_REPOSITORIES_")) {
+            // create github branch
+            const repoUrl = repo.replace("GITHUB_CLOUD_REPOSITORIES_", "");
+            req.session.repoUrl = repoUrl
+            req.session.apiUrl = convertGithubCloudRepoUrlToApiUrl(repoUrl)
+            req.session.branchName = branchName;
+            res.redirect("/login/github/cloud")
+        } else if (repo.startsWith("BITBUCKET_SERVER_REPOSITORIES_")) {
+            // creat bb server branch
+            const repoUrl = repo.replace("BITBUCKET_SERVER_REPOSITORIES_", "")
+            req.session.repoUrl = repoUrl
+            req.session.apiUrl = convertBitbucketServerRepoUrlToApiUrl(repoUrl)
+            req.session.branchName = branchName;
+            res.redirect("/login/bitbucket/server/callback")
+        } else if (repo.startsWith("BITBUCKET_CLOUD_REPOSITORIES_")) {
+            // creat bb cloud branch
+            const repoUrl = repo.replace("BITBUCKET_CLOUD_REPOSITORIES_", "");
+            req.session.repoUrl = repoUrl
+            req.session.apiUrl = convertBitbucketCloudRepoUrlToApiUrl(repoUrl);
+            req.session.branchName = branchName;
+            res.redirect("/login/bitbucket/cloud")
+        }
+        console.log(branchName);
+        console.log(JSON.stringify(req.body))
+    } catch (e) {
+        sendErrorMessage(res, "An error occurred while selecting the repository", e)
     }
-    console.log(branchName);
-    console.log(JSON.stringify(req.body))
 })
 
 /**
