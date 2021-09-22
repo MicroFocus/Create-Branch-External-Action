@@ -345,14 +345,11 @@ app.post("/repo_selected", urlencodedParser, async (req, res) => {
  */
 function sendErrorMessage(res: express.Response, errorMessage: string, errorCause: any) {
 
+    console.error(errorMessage, errorCause)
     let additionalInformation = ""
     if (errorCause.hasOwnProperty("message")) {
-        additionalInformation += errorCause.message + "<br><br>";
+        additionalInformation += errorCause.message;
     }
-    if (errorCause.hasOwnProperty("stack")) {
-        additionalInformation += errorCause.stack + "<br><br>";
-    }
-    additionalInformation += JSON.stringify(errorCause);
     res.send(
         getStyle() +
         `<div class="banner">Create Branch</div>` +
