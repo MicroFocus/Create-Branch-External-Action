@@ -383,9 +383,17 @@ async function createBranchInOctaneResponse(req: express.Request, res: express.R
         if (!entityCreateEntitiesResponse.errors) {
             res.send(getSuccessfullyCreatedBranchPage());
         } else {
-            throw new Error("The branch was created in the SCM Repository, but an error occurred while creating the branch in Octane." +
-                "Please check if there was an existing branch with the same name for the same repository. If there is, you might need to update its delete status. " +
-                "Additional info: :" + JSON.stringify(entityCreateEntitiesResponse.errors))
+            console.error(entityCreateEntitiesResponse.errors)
+            if (entityCreateEntitiesResponse.errors.length === 1) {
+                const octaneError = entityCreateEntitiesResponse.errors[0];
+                delete octaneError.stack_trace;
+                throw new Error("The branch was created in the SCM Repository, but an error occurred while creating the branch in Octane." +
+                    "Please check if there was an existing branch with the same name for the same repository. If there is, you might need to update its delete status. " +
+                    "Additional info:" + JSON.stringify(octaneError))
+            } else {
+                throw new Error("The branch was created in the SCM Repository, but an unknown error occurred while creating the branch in Octane." +
+                    "Check the logs of the utility for additional information.")
+            }
         }
     } else {
         res.send(getSuccessfullyCreatedBranchPage())
