@@ -124,7 +124,7 @@ Required parameters in the `.env` file:
   need to check if your Octane version has this functionality. An easy way to check is going to the Team Backlog or
   opening a work item (e.g. User Story) and checking if you have a branches tab. If your Octane version does not support
   branches, this field should be set to `false` in which case the other octane related parameters become irrelevant.
-* `OCTANE_URL`: the url to Octane. Example: `OCTANE_URL=http://myOctaneServer:8080`
+* `OCTANE_URL`: the url to Octane (including the port) . Example: `OCTANE_URL=http://myOctaneServer:8080`
 * `OCTANE_SHARED_SPACES`, `OCTANE_USERS` & `OCTANE_PASSWORDS`: Comma
   separated [API access keys](https://admhelp.microfocus.com/octane/en/15.1.60/Online/Content/AdminGuide/how_setup_APIaccess.htm#mt-item-2)
   for each shared space. The order is important. Example:

@@ -33,18 +33,23 @@ export async function createOctaneBranch(sharedSpaceId: number, workspaceId: num
     const octaneSharedSpace = await getOctaneFromEnv(sharedSpaceId, apiHeader);
     const octaneWorkspace = octaneSharedSpace.workspace(workspaceId);
     const repository = await getOctaneRootRepository(octaneWorkspace, repoUrl);
-    return await octaneWorkspace.createEntities("scm_repositories", [
+    const createdBranch = await octaneWorkspace.createEntities("scm_repositories", [
         {
             name: branchName,
-            repository,
-            work_items: {
-                data: [{
-                    id: workItemId,
-                    type: "work_item"
-                }]
-            }
+            repository
         }
     ]);
+    if (createdBranch.errors)
+        return createdBranch;
+    return octaneWorkspace.updateEntities("analytics/ci/link-stories-to-branch?reference-update-mode=append", [{
+        scm_branches: {
+            data: [{
+                id: createdBranch.data[0].id,
+                type: createdBranch.data[0].type
+            }]
+        },
+        id: workItemId
+    }])
 }
 
 async function createRootRepository(octaneWorkspace: OctaneWorkspace, repoUrl: string): Promise<ReferenceEntity> {

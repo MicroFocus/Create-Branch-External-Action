@@ -60,6 +60,7 @@ const DEFAULT_FETCH_PARAMETERS: FetchParameters = {
 };
 
 interface OctaneError {
+	stack_trace?: string;
 	description: string;
 }
 
