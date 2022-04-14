@@ -54,7 +54,7 @@ const githubCloudClientSecret = process.env.GITHUB_CLOUD_CLIENT_SECRET;
 const bitbucketCloudClientId = process.env.BITBUCKET_CLOUD_CLIENT_ID;
 const bitbucketCloudClientSecret = process.env.BITBUCKET_CLOUD_CLIENT_SECRET;
 
-const doesOctaneSupportBranches = process.env.DOES_OCTANE_SUPPORT_BRANCHES === "true";
+const doesOctaneSupportBranches = process.env.DOES_OCTANE_SUPPORT_BRANCHES.toLowerCase() === "true";
 
 /**
  * Endpoint for starting the Bitbucket Cloud Oauth Login
